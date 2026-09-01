@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "bankstatementparser-writer-qif"
-version = "0.0.1"
+version = "0.0.19"
 description = "Quicken Interchange Format (QIF) structured export writer for bankstatementparser."
 authors = ["Sebastien Rousseau <sebastian.rousseau@gmail.com>"]
 license = "Apache-2.0 OR MIT"
