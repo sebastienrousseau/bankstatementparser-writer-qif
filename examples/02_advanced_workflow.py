@@ -4,7 +4,6 @@
 """Advanced workflow example for bankstatementparser-writer-qif."""
 
 
-
 def main() -> None:
     print("Running advanced bankstatementparser-writer-qif demonstration...")
 
