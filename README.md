@@ -1,62 +1,126 @@
-# Quicken Interchange Format (QIF) Writer for Bank Statement Parser
+<!-- SPDX-License-Identifier: Apache-2.0 OR MIT -->
 
-[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache_2.0_OR_MIT-blue.svg)](LICENSE)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](https://github.com/sebastienrousseau/bankstatementparser-writer-qif)
+<p align="center">
+  <img
+    src="https://cloudcdn.pro/bankstatementparser/v1/logos/bankstatementparser.svg"
+    alt="bankstatementparser-writer-qif logo"
+    width="120"
+    height="120"
+  />
+</p>
 
-Quicken Interchange Format (QIF) export writer plugin for [`bankstatementparser`](https://github.com/sebastienrousseau/bankstatementparser).
+<h1 align="center">bankstatementparser-writer-qif</h1>
+
+<p align="center">
+  <b>Quicken Interchange Format (QIF) structured export writer plugin for bankstatementparser.</b>
+</p>
+
+<p align="center">
+  <a href="https://pypi.org/project/bankstatementparser-writer-qif/"><img src="https://img.shields.io/pypi/v/bankstatementparser-writer-qif?style=for-the-badge" alt="PyPI version" /></a>
+  <a href="https://pypi.org/project/bankstatementparser-writer-qif/"><img src="https://img.shields.io/pypi/pyversions/bankstatementparser-writer-qif.svg?style=for-the-badge" alt="Python versions" /></a>
+  <a href="https://pypi.org/project/bankstatementparser-writer-qif/"><img src="https://img.shields.io/pypi/dm/bankstatementparser-writer-qif.svg?style=for-the-badge" alt="PyPI downloads" /></a>
+  <a href="https://github.com/sebastienrousseau/bankstatementparser-writer-qif/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sebastienrousseau/bankstatementparser-writer-qif/ci.yml?branch=main&label=Tests&style=for-the-badge" alt="Tests" /></a>
+  <a href="#license"><img src="https://img.shields.io/pypi/l/bankstatementparser-writer-qif?style=for-the-badge" alt="License" /></a>
+</p>
 
 ---
 
-## Features
+## Contents
 
-- **Standard QIF Serialization**: Generates clean, compliant QIF files compatible with Quicken, GnuCash, Ledger, Money, and standard accounting software.
-- **Multiple Input Shapes**: Seamlessly accepts `list[Transaction]`, `pandas.DataFrame`, `list[dict]`, or any `bankstatementparser` statement parser object.
-- **Configurable Formats**: Customize account type header (`Bank`, `CCard`, `Cash`, `Invst`) and date format string (`%Y-%m-%d`, `%d/%m/%Y`, `%m/%d/%Y`).
-- **100% Type Safe & Tested**: Full static typing and 100% test coverage.
+- [What is bankstatementparser-writer-qif?](#what-is-bankstatementparser-writer-qif) — the problem it solves
+- [Install](#install) — PyPI, virtualenv
+- [Quick start](#quick-start) — export transactions to QIF in three lines
+- [Public API](#public-api) — `to_qif`, `write_qif`
+- [QIF Specification](#qif-specification) — supported account types and field codes
+- [Development](#development) — quality gates, tests
+- [Ecosystem](#ecosystem) — modular package suite
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## Installation
+## What is bankstatementparser-writer-qif?
 
-```bash
-pip install bankstatementparser-writer-qif
+**QIF** (Quicken Interchange Format) is a widely supported open financial exchange text format used by accounting software (GnuCash, Moneydance, QuickBooks, Quicken, YNAB) for bidirectional transaction import.
+
+**bankstatementparser-writer-qif** is a dedicated serializer that converts `bankstatementparser` `Transaction` objects, `pandas.DataFrame` instances, or dictionaries back into valid, standard QIF exchange files.
+
+| Concern | How this writer handles it |
+| :--- | :--- |
+| **Input Flexibility** | Accepts `list[Transaction]`, `pandas.DataFrame`, or `list[dict]` |
+| **Account Types** | Supports `!Type:Bank`, `!Type:Cash`, `!Type:CCard`, `!Type:Invst` |
+| **Item Records** | Serializes `D` (Date), `T` (Amount), `P` (Payee/Description), `M` (Memo), `N` (Check/Ref number), `^` (End) |
+| **Date Formatting** | Configurable date formatting (defaults to standard ISO `YYYY-MM-DD` or Quicken `MM/DD/YYYY`) |
+
+---
+
+## Install
+
+| Channel | Command | Notes |
+| :--- | :--- | :--- |
+| PyPI | `pip install bankstatementparser-writer-qif` | Pulls in `bankstatementparser >= 0.0.19` |
+| Source | `git clone https://github.com/sebastienrousseau/bankstatementparser-writer-qif && cd bankstatementparser-writer-qif && poetry install` | For local development |
+
+Requires Python 3.10 or later. Compatible with macOS, Linux, and Windows.
+
+<details>
+<summary>Using an isolated virtual environment (recommended)</summary>
+
+```sh
+python -m venv venv
+source venv/bin/activate        # macOS/Linux
+venv\Scripts\activate           # Windows
+python -m pip install -U bankstatementparser-writer-qif
 ```
 
+</details>
+
 ---
 
-## Quickstart
+
+## Quick start
 
 ```python
-from bankstatementparser.transaction_models import Transaction
 from bankstatementparser_writer_qif import write_qif
-from decimal import Decimal
-from datetime import date
+from bankstatementparser import create_parser
 
-transactions = [
-    Transaction(
-        account_id="FR7612345",
-        amount=Decimal("1500.50"),
-        booking_date=date(2026, 1, 15),
-        description="Salary Payment",
-        reference="SAL-001",
-        category="Income:Salary",
-    ),
-    Transaction(
-        account_id="FR7612345",
-        amount=Decimal("-45.20"),
-        booking_date=date(2026, 1, 16),
-        description="Coffee Shop",
-        reference="TX9988",
-        category="Expenses:Dining",
-    ),
-]
+# 1. Parse any input bank statement (e.g. CAMT.053, MT940, CSV)
+parser = create_parser("statement.xml")
+transactions = parser.to_transactions()
 
-# Write to QIF file
-write_qif(transactions, "statement.qif")
+# 2. Export parsed data to standard QIF exchange file
+write_qif(transactions, "statement_export.qif", account_type="Bank")
 ```
 
 ---
+
+## Public API
+
+- `to_qif(data: Any, account_type: str = "Bank", date_format: str = "%Y-%m-%d") -> str`: Serializes transactions to a QIF string.
+- `write_qif(data: Any, output_path: str | Path, account_type: str = "Bank", date_format: str = "%Y-%m-%d") -> Path`: Writes QIF directly to a target file.
+
+---
+
+## Development
+
+The project enforces strict code-quality gates: 100% test and branch coverage, strict type annotations (`mypy`), style linting (`ruff`), docstring coverage (`interrogate`), and security scanning (`bandit`).
+
+```bash
+# Run test suite with branch coverage enforcement
+poetry run pytest
+
+# Type checking and linting
+poetry run mypy .
+poetry run ruff check .
+poetry run ruff format --check .
+
+# Documentation and security gates
+poetry run interrogate -v
+poetry run bandit -r . -c pyproject.toml
+```
+
+---
+
 
 ## Ecosystem
 
@@ -81,6 +145,13 @@ write_qif(transactions, "statement.qif")
 
 ---
 
+## Contributing
+
+Contributions are welcome! Please submit an issue or pull request on GitHub. Ensure that all quality gates pass and test coverage remains at 100%.
+
+---
+
 ## License
 
-Dual-licensed under Apache 2.0 and MIT.
+This project is dual-licensed under the **Apache License 2.0** and the **MIT License**. See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for full details.
+
