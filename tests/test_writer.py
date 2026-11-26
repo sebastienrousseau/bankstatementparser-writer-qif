@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import sys
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -13,6 +14,11 @@ import pandas as pd
 from bankstatementparser.transaction_models import Transaction
 from hypothesis import given
 from hypothesis import strategies as st
+
+if sys.version_info >= (3, 11):  # pragma: no cover - version dependent
+    import tomllib
+else:  # pragma: no cover - version dependent
+    import tomli as tomllib
 
 from bankstatementparser_writer_qif import __version__, to_qif, write_qif
 from bankstatementparser_writer_qif.writer import (
@@ -54,8 +60,12 @@ class DummyParserWithDataFrame:
 
 
 def test_version() -> None:
-    """Verifies that version is exposed and semantic."""
-    assert __version__ == "0.0.19"
+    """The exported version is the one pyproject.toml declares."""
+    with (Path(__file__).resolve().parents[1] / "pyproject.toml").open(
+        "rb"
+    ) as handle:
+        declared = tomllib.load(handle)["tool"]["poetry"]["version"]
+    assert __version__ == declared
 
 
 def test_to_qif_with_transactions() -> None:
@@ -164,6 +174,33 @@ def test_dummy_parsers() -> None:
     r2 = _normalize_records(p2)
     assert len(r2) == 1
     assert r2[0]["description"] == "DF Parser Tx"
+
+
+def test_unsupported_items_are_skipped() -> None:
+    """Items that are neither a Transaction nor a mapping are dropped."""
+    records = _normalize_records([{"amount": "1.00"}, 42, "text", None])
+    assert records == [{"amount": "1.00"}]
+
+
+def test_empty_fields_emit_no_lines() -> None:
+    """A record with no usable fields yields only its terminator."""
+    assert to_qif([{}]) == "!Type:Bank\n^\n"
+
+
+def test_whitespace_only_fields_emit_no_lines() -> None:
+    """Fields that are blank after stripping are left out."""
+    out = to_qif(
+        [
+            {
+                "amount": "1.00",
+                "payee": "   ",
+                "memo": "  ",
+                "reference": " ",
+                "category": "\t",
+            }
+        ]
+    )
+    assert out == "!Type:Bank\nT1.00\n^\n"
 
 
 def test_coercion_edge_cases() -> None:
