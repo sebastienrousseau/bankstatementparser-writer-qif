@@ -166,6 +166,33 @@ def test_dummy_parsers() -> None:
     assert r2[0]["description"] == "DF Parser Tx"
 
 
+def test_unsupported_items_are_skipped() -> None:
+    """Items that are neither a Transaction nor a mapping are dropped."""
+    records = _normalize_records([{"amount": "1.00"}, 42, "text", None])
+    assert records == [{"amount": "1.00"}]
+
+
+def test_empty_fields_emit_no_lines() -> None:
+    """A record with no usable fields yields only its terminator."""
+    assert to_qif([{}]) == "!Type:Bank\n^\n"
+
+
+def test_whitespace_only_fields_emit_no_lines() -> None:
+    """Fields that are blank after stripping are left out."""
+    out = to_qif(
+        [
+            {
+                "amount": "1.00",
+                "payee": "   ",
+                "memo": "  ",
+                "reference": " ",
+                "category": "\t",
+            }
+        ]
+    )
+    assert out == "!Type:Bank\nT1.00\n^\n"
+
+
 def test_coercion_edge_cases() -> None:
     """Tests date and amount coercion edge cases."""
     assert _coerce_date_str(None) is None
