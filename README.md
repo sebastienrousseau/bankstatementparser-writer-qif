@@ -58,7 +58,7 @@
 
 | Channel | Command | Notes |
 | :--- | :--- | :--- |
-| PyPI | `pip install bankstatementparser-writer-qif` | Pulls in `bankstatementparser >= 0.0.34` |
+| PyPI | `pip install bankstatementparser-writer-qif` | Pulls in `bankstatementparser >= 0.0.35` |
 | Source | `git clone https://github.com/sebastienrousseau/bankstatementparser-writer-qif && cd bankstatementparser-writer-qif && poetry install` | For local development |
 
 Requires Python 3.10 or later. Compatible with macOS, Linux, and Windows.
