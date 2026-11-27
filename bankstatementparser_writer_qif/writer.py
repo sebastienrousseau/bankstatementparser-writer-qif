@@ -102,6 +102,37 @@ def _normalize_records(
     return records
 
 
+def _one_line(value: Any) -> str:
+    """``value`` as text on one line: every line break becomes a space.
+
+    QIF is one field per line, so a line break inside a value would
+    start a field, or with ``^`` a record, of its own.
+    """
+    return " ".join(str(value).splitlines()).strip()
+
+
+def _record_lines(rec: Mapping[str, Any], date_format: str) -> list[str]:
+    """The ``D``/``T``/``P``/``M``/``N``/``L`` lines and ``^`` for a record."""
+    raw_date = (
+        rec.get("date") or rec.get("booking_date") or rec.get("value_date")
+    )
+    fields = (
+        ("D", _coerce_date_str(raw_date, date_format)),
+        ("T", _coerce_amount_str(rec.get("amount"))),
+        ("P", rec.get("payee") or rec.get("description")),
+        ("M", rec.get("memo") or rec.get("extra_info")),
+        ("N", rec.get("reference") or rec.get("check_number")),
+        ("L", rec.get("category")),
+    )
+    lines = [
+        f"{code}{text}"
+        for code, value in fields
+        if value and (text := _one_line(value))
+    ]
+    lines.append("^")
+    return lines
+
+
 def to_qif(
     data: (
         Sequence[Transaction]
@@ -124,53 +155,8 @@ def to_qif(
     """
     records = _normalize_records(data)
     lines: list[str] = [f"!Type:{account_type}"]
-
     for rec in records:
-        # Date
-        d_val = (
-            rec.get("date") or rec.get("booking_date") or rec.get("value_date")
-        )
-        d_str = _coerce_date_str(d_val, date_format)
-        if d_str:
-            lines.append(f"D{d_str}")
-
-        # Amount
-        amt_val = rec.get("amount")
-        amt_str = _coerce_amount_str(amt_val)
-        if amt_str is not None:
-            lines.append(f"T{amt_str}")
-
-        # Payee / Description
-        payee = rec.get("payee") or rec.get("description")
-        if payee:
-            clean_payee = str(payee).strip().replace("\n", " ")
-            if clean_payee:
-                lines.append(f"P{clean_payee}")
-
-        # Memo
-        memo = rec.get("memo") or rec.get("extra_info")
-        if memo:
-            clean_memo = str(memo).strip().replace("\n", " ")
-            if clean_memo:
-                lines.append(f"M{clean_memo}")
-
-        # Reference / Check number
-        ref = rec.get("reference") or rec.get("check_number")
-        if ref:
-            clean_ref = str(ref).strip()
-            if clean_ref:
-                lines.append(f"N{clean_ref}")
-
-        # Category
-        cat = rec.get("category")
-        if cat:
-            clean_cat = str(cat).strip()
-            if clean_cat:
-                lines.append(f"L{clean_cat}")
-
-        # End of record
-        lines.append("^")
-
+        lines.extend(_record_lines(rec, date_format))
     return "\n".join(lines) + "\n"
 
 

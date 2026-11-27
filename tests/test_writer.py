@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
+import pytest
 from bankstatementparser.transaction_models import Transaction
 from hypothesis import given
 from hypothesis import strategies as st
@@ -243,3 +244,21 @@ def test_fuzz_to_qif(amount: Decimal, payee: str) -> None:
     out = to_qif(txs)
     assert "!Type:Bank" in out
     assert "^" in out
+
+
+@pytest.mark.parametrize(
+    "field", ["date", "amount", "payee", "memo", "reference", "category"]
+)
+def test_line_breaks_in_a_field_cannot_start_a_line(field: str) -> None:
+    """QIF is one field per line, so a value's line breaks become spaces.
+
+    Only payee and memo replaced newlines before; a date, an amount, a
+    reference or a category holding "\\n^" ended the record early and
+    started a forged one, and a bare "\\r" split a line for readers that
+    honour it.
+    """
+    qif = to_qif([{field: "X1\n^\nPForged\rLInjected"}])
+    lines = qif.split("\n")
+    assert lines.count("^") == 1
+    assert not any(line.startswith(("PForged", "LInjected")) for line in lines)
+    assert "\r" not in qif
