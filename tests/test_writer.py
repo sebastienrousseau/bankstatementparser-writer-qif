@@ -262,3 +262,26 @@ def test_line_breaks_in_a_field_cannot_start_a_line(field: str) -> None:
     assert lines.count("^") == 1
     assert not any(line.startswith(("PForged", "LInjected")) for line in lines)
     assert "\r" not in qif
+
+
+@pytest.mark.parametrize(
+    ("amount", "written"),
+    [
+        ("1E+999999", "T1E+999999"),
+        (10**40, f"T{10**40}"),
+        (Decimal("-9E+99"), "T-9E+99"),
+        ("NaN", "TNaN"),
+        ("-Infinity", "T-Infinity"),
+    ],
+)
+def test_out_of_range_amount_is_written_as_given(
+    amount: object, written: str
+) -> None:
+    """An amount too large for cents is written as given, not expanded.
+
+    Formatting "1E+999999999" with two decimals builds a billion-digit
+    string, and a huge int raised OverflowError on the way through
+    float formatting. Such amounts are now written as they came, like an
+    amount that does not parse.
+    """
+    assert to_qif([{"amount": amount}]).split("\n")[1] == written

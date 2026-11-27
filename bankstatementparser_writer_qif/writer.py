@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -39,21 +39,41 @@ def _coerce_date_str(val: Any, date_format: str = "%Y-%m-%d") -> str | None:
     return str(val)
 
 
+_CENT = Decimal("0.01")
+
+
+def _cents(amount: Decimal, as_given: str) -> str:
+    """``amount`` with two decimals, or ``as_given`` when it is too large.
+
+    An amount that does not fit the default 28 significant digits at
+    cent precision ("1E+999999999") would expand to a billion digits,
+    so it is written as it came, like an amount that does not parse.
+    """
+    if amount.is_finite():
+        try:
+            amount.quantize(_CENT)
+        except InvalidOperation:
+            return as_given
+    return f"{amount:.2f}"
+
+
 def _coerce_amount_str(val: Any) -> str | None:
     """Coerce amount values to decimal string with 2 decimal places."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
-    if isinstance(val, (Decimal, int, float)):
+    if isinstance(val, float):
         return f"{val:.2f}"
+    if isinstance(val, (Decimal, int)):
+        return _cents(Decimal(val), str(val))
     if isinstance(val, str):
         clean = val.strip().replace(",", "")
         if not clean:
             return None
         try:
             d = Decimal(clean)
-            return f"{d:.2f}"
         except Exception:
             return clean
+        return _cents(d, clean)
     return str(val)
 
 
