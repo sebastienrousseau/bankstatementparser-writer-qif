@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -39,42 +39,39 @@ def _coerce_date_str(val: Any, date_format: str = "%Y-%m-%d") -> str | None:
     return str(val)
 
 
-_CENT = Decimal("0.01")
-
-
-def _cents(amount: Decimal, as_given: str) -> str:
-    """``amount`` with two decimals, or ``as_given`` when it is too large.
-
-    An amount that does not fit the default 28 significant digits at
-    cent precision ("1E+999999999") would expand to a billion digits,
-    so it is written as it came, like an amount that does not parse.
-    """
-    if amount.is_finite():
-        try:
-            amount.quantize(_CENT)
-        except InvalidOperation:
-            return as_given
-    return f"{amount:.2f}"
+def _parse_amount_text(text: str) -> tuple[Decimal | None, str]:
+    """Parse amount text (commas dropped) and return it with the text."""
+    as_given = text.strip().replace(",", "")
+    try:
+        return Decimal(as_given), as_given
+    except Exception:
+        return None, as_given
 
 
 def _coerce_amount_str(val: Any) -> str | None:
-    """Coerce amount values to decimal string with 2 decimal places."""
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    """Coerce amount values to decimal string with 2 decimal places.
+
+    Text that does not parse is written as given. So is an amount of
+    1E+26 or more, which needs more than 28 significant digits at cent
+    precision: "1E+999999999" would otherwise expand to a billion
+    digits. ``adjusted()`` keeps that check cheap, as this runs once per
+    record.
+    """
+    if val is None:
         return None
     if isinstance(val, float):
-        return f"{val:.2f}"
-    if isinstance(val, (Decimal, int)):
-        return _cents(Decimal(val), str(val))
+        return None if pd.isna(val) else f"{val:.2f}"
     if isinstance(val, str):
-        clean = val.strip().replace(",", "")
-        if not clean:
-            return None
-        try:
-            d = Decimal(clean)
-        except Exception:
-            return clean
-        return _cents(d, clean)
-    return str(val)
+        amount, as_given = _parse_amount_text(val)
+        if amount is None:
+            return as_given or None
+    elif isinstance(val, (Decimal, int)):
+        amount, as_given = Decimal(val), str(val)
+    else:
+        return str(val)
+    if amount.is_finite() and amount.adjusted() >= 26:
+        return as_given
+    return f"{amount:.2f}"
 
 
 def _normalize_records(
@@ -122,17 +119,15 @@ def _normalize_records(
     return records
 
 
-def _one_line(value: Any) -> str:
-    """``value`` as text on one line: every line break becomes a space.
-
-    QIF is one field per line, so a line break inside a value would
-    start a field, or with ``^`` a record, of its own.
-    """
-    return " ".join(str(value).splitlines()).strip()
-
-
 def _record_lines(rec: Mapping[str, Any], date_format: str) -> list[str]:
-    """The ``D``/``T``/``P``/``M``/``N``/``L`` lines and ``^`` for a record."""
+    """The ``D``/``T``/``P``/``M``/``N``/``L`` lines and ``^`` for a record.
+
+    QIF is one field per line, so every line break inside a value
+    (whatever ``str.splitlines`` splits on) becomes a space: otherwise
+    it would start a field, or with ``^`` a record, of its own. The
+    normalisation is inline rather than a helper because this runs once
+    per field of every record.
+    """
     raw_date = (
         rec.get("date") or rec.get("booking_date") or rec.get("value_date")
     )
@@ -144,11 +139,11 @@ def _record_lines(rec: Mapping[str, Any], date_format: str) -> list[str]:
         ("N", rec.get("reference") or rec.get("check_number")),
         ("L", rec.get("category")),
     )
-    lines = [
-        f"{code}{text}"
-        for code, value in fields
-        if value and (text := _one_line(value))
-    ]
+    lines = []
+    for code, value in fields:
+        text = " ".join(str(value).splitlines()).strip() if value else ""
+        if text:
+            lines.append(code + text)
     lines.append("^")
     return lines
 
