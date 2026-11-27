@@ -20,8 +20,8 @@ In lockstep with the suite's 0.0.36 release.
   fuzz target found this.
 - An amount too large for 28 significant digits at cent precision (for
   example `"1E+999999999"`) ran out of memory while being formatted, and
-  a huge `int` raised `OverflowError`; such amounts are now written as
-  given, as an amount that does not parse already was.
+  a huge `int` raised `OverflowError`; amounts of 1E+26 or more are now
+  written as given, as an amount that does not parse already was.
 
 ### Added
 
@@ -55,10 +55,13 @@ In lockstep with the suite's 0.0.36 release.
 
 - Requires `bankstatementparser >= 0.0.35` (was `>= 0.0.34`), the
   newest core release on PyPI.
-- `to_qif` is split into `_record_lines` and `_one_line`; it was over
+- `to_qif` is split into `_record_lines`; it was over
   the complexity ceilings (cyclomatic 17, cognitive 29, 70 lines) and
   now none of its parts is, so the complexity baseline shrinks from
   seven offenders to six.
+- `test_qif_writer_concurrency` runs without coverage measurement
+  (`no_cover`), so its unchanged 5 s throughput limit times the writer
+  rather than the coverage tracer on CPython 3.10 and 3.11.
 - CI tests on ubuntu, macOS and Windows with CPython 3.10 to 3.14
   (Linux only before), and every action is pinned by commit SHA except
   the SLSA generator, which must be referenced by tag.

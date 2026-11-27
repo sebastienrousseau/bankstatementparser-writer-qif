@@ -18,7 +18,7 @@ _record_lines(rec, date_format)
         _coerce_date_str()           D line
         _coerce_amount_str()         T line (two decimals, or as given)
         payee / memo / reference / category -> P, M, N, L lines
-        _one_line()                  every line break becomes a space
+        each value on one line       every line break becomes a space
         "^"
         v
 to_qif(): "!Type:<account_type>" + lines   -> str
@@ -43,8 +43,8 @@ write_qif(): to_qif() -> UTF-8 file        -> Path
 - **One normalised shape.** Every input becomes a list of dicts first,
   so the formatting code has one path whatever the caller passed.
 - **One field per line.** QIF has no escaping, so the only protection a
-  writer can give is to keep each value on its line; `_one_line` does
-  that for every field and the fuzz target checks it.
+  writer can give is to keep each value on its line; `_record_lines`
+  does that for every field and the fuzz target checks it.
 - **Never raise on a bad value.** An amount that does not parse, or is
   too large to write with cents, is written as given, and an empty
   field is left out, so one odd row cannot abort an export.

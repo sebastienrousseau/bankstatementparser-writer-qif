@@ -21,7 +21,7 @@ line is left out when its value is missing or empty.
 | QIF line | Taken from |
 | :--- | :--- |
 | `D` | `date`, else `booking_date`, else `value_date` (a `Transaction` gives its booking date, else its value date), formatted with `date_format`; an ISO string is reformatted, any other string is written as it is |
-| `T` | `amount` with two decimals; a string that does not parse, or an amount too large for 28 significant digits at cent precision, is written as given |
+| `T` | `amount` with two decimals; a string that does not parse, or an amount of 1E+26 or more (beyond 28 significant digits at cent precision), is written as given |
 | `P` | `payee`, else `description` |
 | `M` | `memo`, else `extra_info` (a `Transaction` gives its reference, else its transaction ID) |
 | `N` | `reference`, else `check_number` |
