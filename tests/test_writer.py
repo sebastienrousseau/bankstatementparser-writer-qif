@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
+import pytest
 from bankstatementparser.transaction_models import Transaction
 from hypothesis import given
 from hypothesis import strategies as st
@@ -243,3 +244,44 @@ def test_fuzz_to_qif(amount: Decimal, payee: str) -> None:
     out = to_qif(txs)
     assert "!Type:Bank" in out
     assert "^" in out
+
+
+@pytest.mark.parametrize(
+    "field", ["date", "amount", "payee", "memo", "reference", "category"]
+)
+def test_line_breaks_in_a_field_cannot_start_a_line(field: str) -> None:
+    """QIF is one field per line, so a value's line breaks become spaces.
+
+    Only payee and memo replaced newlines before; a date, an amount, a
+    reference or a category holding "\\n^" ended the record early and
+    started a forged one, and a bare "\\r" split a line for readers that
+    honour it.
+    """
+    qif = to_qif([{field: "X1\n^\nPForged\rLInjected"}])
+    lines = qif.split("\n")
+    assert lines.count("^") == 1
+    assert not any(line.startswith(("PForged", "LInjected")) for line in lines)
+    assert "\r" not in qif
+
+
+@pytest.mark.parametrize(
+    ("amount", "written"),
+    [
+        ("1E+999999", "T1E+999999"),
+        (10**40, f"T{10**40}"),
+        (Decimal("-9E+99"), "T-9E+99"),
+        ("NaN", "TNaN"),
+        ("-Infinity", "T-Infinity"),
+    ],
+)
+def test_out_of_range_amount_is_written_as_given(
+    amount: object, written: str
+) -> None:
+    """An amount too large for cents is written as given, not expanded.
+
+    Formatting "1E+999999999" with two decimals builds a billion-digit
+    string, and a huge int raised OverflowError on the way through
+    float formatting. Such amounts are now written as they came, like an
+    amount that does not parse.
+    """
+    assert to_qif([{"amount": amount}]).split("\n")[1] == written

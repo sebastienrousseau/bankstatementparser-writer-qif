@@ -7,5 +7,5 @@ from __future__ import annotations
 
 from .writer import to_qif, write_qif
 
-__version__ = "0.0.35"
+__version__ = "0.0.36"
 __all__ = ["__version__", "to_qif", "write_qif"]

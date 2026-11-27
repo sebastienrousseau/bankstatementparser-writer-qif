@@ -39,22 +39,39 @@ def _coerce_date_str(val: Any, date_format: str = "%Y-%m-%d") -> str | None:
     return str(val)
 
 
+def _parse_amount_text(text: str) -> tuple[Decimal | None, str]:
+    """Parse amount text (commas dropped) and return it with the text."""
+    as_given = text.strip().replace(",", "")
+    try:
+        return Decimal(as_given), as_given
+    except Exception:
+        return None, as_given
+
+
 def _coerce_amount_str(val: Any) -> str | None:
-    """Coerce amount values to decimal string with 2 decimal places."""
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    """Coerce amount values to decimal string with 2 decimal places.
+
+    Text that does not parse is written as given. So is an amount of
+    1E+26 or more, which needs more than 28 significant digits at cent
+    precision: "1E+999999999" would otherwise expand to a billion
+    digits. ``adjusted()`` keeps that check cheap, as this runs once per
+    record.
+    """
+    if val is None:
         return None
-    if isinstance(val, (Decimal, int, float)):
-        return f"{val:.2f}"
+    if isinstance(val, float):
+        return None if pd.isna(val) else f"{val:.2f}"
     if isinstance(val, str):
-        clean = val.strip().replace(",", "")
-        if not clean:
-            return None
-        try:
-            d = Decimal(clean)
-            return f"{d:.2f}"
-        except Exception:
-            return clean
-    return str(val)
+        amount, as_given = _parse_amount_text(val)
+        if amount is None:
+            return as_given or None
+    elif isinstance(val, (Decimal, int)):
+        amount, as_given = Decimal(val), str(val)
+    else:
+        return str(val)
+    if amount.is_finite() and amount.adjusted() >= 26:
+        return as_given
+    return f"{amount:.2f}"
 
 
 def _normalize_records(
@@ -102,6 +119,35 @@ def _normalize_records(
     return records
 
 
+def _record_lines(rec: Mapping[str, Any], date_format: str) -> list[str]:
+    """The ``D``/``T``/``P``/``M``/``N``/``L`` lines and ``^`` for a record.
+
+    QIF is one field per line, so every line break inside a value
+    (whatever ``str.splitlines`` splits on) becomes a space: otherwise
+    it would start a field, or with ``^`` a record, of its own. The
+    normalisation is inline rather than a helper because this runs once
+    per field of every record.
+    """
+    raw_date = (
+        rec.get("date") or rec.get("booking_date") or rec.get("value_date")
+    )
+    fields = (
+        ("D", _coerce_date_str(raw_date, date_format)),
+        ("T", _coerce_amount_str(rec.get("amount"))),
+        ("P", rec.get("payee") or rec.get("description")),
+        ("M", rec.get("memo") or rec.get("extra_info")),
+        ("N", rec.get("reference") or rec.get("check_number")),
+        ("L", rec.get("category")),
+    )
+    lines = []
+    for code, value in fields:
+        text = " ".join(str(value).splitlines()).strip() if value else ""
+        if text:
+            lines.append(code + text)
+    lines.append("^")
+    return lines
+
+
 def to_qif(
     data: (
         Sequence[Transaction]
@@ -124,53 +170,8 @@ def to_qif(
     """
     records = _normalize_records(data)
     lines: list[str] = [f"!Type:{account_type}"]
-
     for rec in records:
-        # Date
-        d_val = (
-            rec.get("date") or rec.get("booking_date") or rec.get("value_date")
-        )
-        d_str = _coerce_date_str(d_val, date_format)
-        if d_str:
-            lines.append(f"D{d_str}")
-
-        # Amount
-        amt_val = rec.get("amount")
-        amt_str = _coerce_amount_str(amt_val)
-        if amt_str is not None:
-            lines.append(f"T{amt_str}")
-
-        # Payee / Description
-        payee = rec.get("payee") or rec.get("description")
-        if payee:
-            clean_payee = str(payee).strip().replace("\n", " ")
-            if clean_payee:
-                lines.append(f"P{clean_payee}")
-
-        # Memo
-        memo = rec.get("memo") or rec.get("extra_info")
-        if memo:
-            clean_memo = str(memo).strip().replace("\n", " ")
-            if clean_memo:
-                lines.append(f"M{clean_memo}")
-
-        # Reference / Check number
-        ref = rec.get("reference") or rec.get("check_number")
-        if ref:
-            clean_ref = str(ref).strip()
-            if clean_ref:
-                lines.append(f"N{clean_ref}")
-
-        # Category
-        cat = rec.get("category")
-        if cat:
-            clean_cat = str(cat).strip()
-            if clean_cat:
-                lines.append(f"L{clean_cat}")
-
-        # End of record
-        lines.append("^")
-
+        lines.extend(_record_lines(rec, date_format))
     return "\n".join(lines) + "\n"
 
 

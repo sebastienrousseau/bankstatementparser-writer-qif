@@ -5,11 +5,6 @@
   "bankstatementparser_writer_qif/writer.py::_normalize_records": {
     "cyclomatic": 12
   },
-  "bankstatementparser_writer_qif/writer.py::to_qif": {
-    "cognitive": 29,
-    "cyclomatic": 17,
-    "lines": 70
-  },
   "tests/test_suite_conformance.py": {
     "file_lines": 678
   },
