@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sebastienrousseau/bankstatementparser-writer-qif/main/.github/demo.gif" alt="A terminal printing the installed version, 0.0.36, then the two examples: two transactions written as QIF with ISO and US dates, and a CSV statement converted to a four-record QIF file" width="100%" />
+  <img src="https://raw.githubusercontent.com/sebastienrousseau/bankstatementparser-writer-qif/main/.github/demo.gif" alt="A terminal printing the installed version, 0.0.37, then the two examples: two transactions written as QIF with ISO and US dates, and a CSV statement converted to a four-record QIF file" width="100%" />
 </p>
 
 ---
